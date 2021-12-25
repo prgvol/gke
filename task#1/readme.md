@@ -10,7 +10,7 @@ grafana и prometeus ставил с помощью helm.
 список метрик прикладываю.
 
 Поэтому создал  servic account для графана и полкллючил Google Cloud Monitoring
-там нужные метрики нашлись (backend request count сгрупированные по metric.label.responce_code).
+там нужные метрики нашлись (backend request count сгрупированные по metric.label.responce_code_class).
 
 создал alert, создал канал в телеграмм 
 в качестве нагрузки , скрипт на баше с двух машин:
