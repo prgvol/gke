@@ -1,2 +1,4 @@
 Кластер в cloud.google
-Приложение 
+Приложение : nginx
+grafana и prometeus ставил с помощью helm
+
