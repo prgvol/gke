@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+     kubernetes.io/ingress.class: gce
+  name: grahpana-ingress
+  namespace: monitoring
+ 
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: grafana
+          servicePort: 3000
+        path: /*
+        pathType: ImplementationSpecific
