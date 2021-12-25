@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: nginx-server
+    app.kubernetes.io/name: nginx-1
+    prometheus.io/port: "9113"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  name: nginx-1-nginx
+  namespace: default
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: nginx-server
+      app.kubernetes.io/name: nginx-1
+  serviceName: nginx-1-nginx-svc
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: nginx-server
+        app.kubernetes.io/name: nginx-1
+    spec:
+      containers:
+      - image: gcr.io/cloud-marketplace/google/nginx:1.20.1-20211212-154222
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: nginx
+          timeoutSeconds: 5
+        name: nginx
+        ports:
+        - containerPort: 80
+          name: nginx
+          protocol: TCP
+        - containerPort: 443
+          name: nginx-https
+          protocol: TCP
+        - containerPort: 9113
+          name: prometheus
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: nginx
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: nginx-1-nginx-pvc
+        - mountPath: /etc/nginx/conf.d
+          name: nginx-config
+          readOnly: true
+        - mountPath: /etc/nginx/certs
+          name: certs
+          readOnly: true
+      - env:
+        - name: SCRAPE_URI
+          value: http://localhost/stub_status
+        image: gcr.io/cloud-marketplace/google/nginx/nginx-exporter:1.20.1-20211212-154222
+        imagePullPolicy: Always
+        name: prometheus-exporter
+        ports:
+        - containerPort: 9113
+          name: prometheus-port
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      - command:
+        - /monitor
+        - --stackdriver-prefix=kubernetes.io
+        - --source=nginx:http://localhost:9113/metrics?customResourceType=k8s_container&customLabels[project_id]&customLabels[location]&customLabels[cluster_name]&customLabels[namespace_name]=$(POD_NAMESPACE)&customLabels[pod_name]=$(POD_NAME)&customLabels[container_name]=nginx
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        image: gcr.io/cloud-marketplace/google/nginx/prometheus-to-sd:1.20.1-20211212-154222
+        imagePullPolicy: IfNotPresent
+        name: prometheus-to-sd-curated
+        ports:
+        - containerPort: 6060
+          name: profiler
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - /bin/bash
+        - -euc
+        - |
+          if [[ ! -f /usr/share/nginx/html/index.html ]]; then
+          cat <<EOF >/usr/share/nginx/html/index.html
+          <!DOCTYPE>
+          <html>
+            <head>
+              <title>Web Server Application</title>
+            </head>
+            <body>
+               <h1>Web site powered by NGINX</h1>
+               <p>This page is under construction. Please come back soon!</p>
+            </body>
+          </html>
+          EOF
+          fi
+        image: gcr.io/cloud-marketplace/google/nginx/debian9:1.20.1-20211212-154222
+        imagePullPolicy: Always
+        name: initialize-volume
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: nginx-1-nginx-pvc
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 180
+      volumes:
+      - name: certs
+        secret:
+          defaultMode: 420
+          secretName: nginx-1-nginx-secret
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: nginx-config.conf
+            path: nginx-config.conf
+          name: nginx-1-nginx-configmap
+        name: nginx-config
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: nginx-server
+        app.kubernetes.io/name: nginx-1
+      name: nginx-1-nginx-pvc
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: premium-rwo
+      volumeMode: Filesystem
