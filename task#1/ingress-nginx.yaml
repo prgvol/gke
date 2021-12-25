@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+     kubernetes.io/ingress.class: gce
+    prometheus.io/port: "9113"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+   name: nginx-ingress
+  namespace: default
+ 
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: nginx-1-nginx-svc
+          servicePort: 80
+        path: /*
+        pathType: ImplementationSpecific
+
