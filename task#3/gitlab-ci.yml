@@ -1,0 +1,46 @@
+#mage: gitlab/dind
+#services:
+ # - docker:dind
+
+#variables:
+#  DOCKER_DRIVER: overlay2
+    
+stages:
+  - build
+  - deploy
+  - failbuld
+
+
+build_personal_gkh:
+  stage: build
+  allow_failure: false
+  script:
+  - cd personal-gkh/
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  #- REV_TAG=$(git rev-parse --verify HEAD)
+  - docker build -t gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:${CI_COMMIT_SHORT_SHA}  .
+  - docker tag gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:${CI_COMMIT_SHORT_SHA} gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:${CI_COMMIT_SHORT_SHA}
+  - docker tag gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:${CI_COMMIT_SHORT_SHA} gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:latest
+  - docker push gitlab.infocraft.ru:5050/orehov/test-autodeploy/personal-gkh:${CI_COMMIT_SHORT_SHA}
+  - cd ..
+  
+
+deploy_presonal_gkh:
+  stage: deploy
+  allow_failure: false
+  script:
+  - echo $KUBECONFIG
+  - export KUBECONFIG=$KUBECONFIG
+  - sed -i "s/<VERSION>/${CI_COMMIT_SHORT_SHA}/g" personal-gkh/deploy.yaml
+  - kubectl apply -f personal-gkh/deploy.yaml
+  - kubectl apply -f personal-gkh/service.yaml
+  
+  send_message
+    stage: failbuild
+    allow_failure: true
+    script: 
+    - curl -G -H $TOKEN_PAGERDUTU -H "Accept: application/vnd.pagerduty+json;version-2" --data-urlencode "statuses[]=triggered" --data-urlencode "statuses[]=acknowledged" $PAGERDUTY_PRGVOL
+  when: on_failure
+
+
+
